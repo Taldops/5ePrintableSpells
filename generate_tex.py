@@ -110,10 +110,86 @@ def contains_dict(entries):
         if type(e) == dict and 'type' in e and e['type'] == 'entries':
             return True
 
+def convert(spell, template):
+    name = spell['name']
+    vprint(name)
+    if contains_table(spell['entries']):
+        print("ERROR:", name, "; tables currently not supported")
+        return
+
+    if contains_dict(spell['entries']):
+        text = itemize_dicts(spell['entries'])
+    elif contains_list(spell['entries']):
+        text = itemize_lists(spell['entries'])
+    else:
+        text = "\\\\\\phantom{-}\\\\".join(spell['entries'])
+
+    higher = "\\\\\\phantom{-}\\\\" + spell['entriesHigherLevel'][0]['entries'][0] if "entriesHigherLevel" in spell else ""
+    level = spell['level']
+    range = spell['range']['distance']['type']
+    if 'amount' in spell['range']['distance']:
+        range = str(spell['range']['distance']['amount']) + " " + range
+    range = range.capitalize()
+    components = ", ".join(list(zip(*list(spell['components'].items())))[0]).upper()
+    save = spell['savingThrow'] if 'savingThrow' in spell else "-"
+    if len(spell['duration']) > 1:
+        print(name, "has multiple durations")
+    time = str(spell['time'][0]['number']) + " " + spell['time'][0]['unit']
+    duration = spell['duration'][0]['type']
+    if 'amount' in spell['duration'][0]:
+        duration = str(spell['duration'][0]['amount']) + " " + duration
+    if 'concentration' in spell['duration'][0] and spell['duration'][0]['concentration']:
+        duration = "(C) " + duration
+    if type(save) == list:
+        save = ", ".join(save)
+    save = save.capitalize()
+    dice, damage = get_damage(spell, text)
+    area = find_area(text)
+
+    #higher = text[text.index("At Higher Levels:"):]
+    text = clean_text(text)
+    output = template
+    output = output.replace('<NAME>', name)    #this copies the template right?
+    output = output.replace('<LEVEL>', str(level))
+    output = output.replace('<RANGE>', range)
+    output = output.replace('<AREA>', area)
+    output = output.replace('<COMPONENTS>', components)
+    output = output.replace('<DURATION>', duration)
+    output = output.replace('<TIME>', time)
+    output = output.replace('<TEXT>', text)
+    output = output.replace('<HIGHER>', higher)
+
+    #clean up
+    delete = 0
+    if dice + " " + damage == "- -":
+        output = output.replace("\\textbf{Damage}", " ")
+        output = output.replace('<DAMAGE>', " ")
+        delete += 1
+        if save == "-":
+            output = output.replace("\\textbf{Saving Throw}", " ")
+            delete += 1
+    else:
+        output = output.replace('<DAMAGE>', dice + " " + damage)
+    output = output.replace('<SAVE>', save)
+    if area == "-":
+        #output = output.replace("\\textbf{Area}", " ")
+        delete += 1
+    #remove empty table rows:
+    if delete == 3:
+        begin = output.index("%d_begin")
+        end = output.index("%d_end")
+        output = output.replace(output[begin:(end+6)], "")
+
+    path = "output/" + name.replace(" ", "_").replace("/", "_").lower() + '.tex'
+    with open(path, "w") as file:
+        file.write(output)
+
+
 def main():
     vprint("Loading data...")
     with open('template.tex', "r") as read_file:
         template = "".join(read_file.readlines())
+
     with open('data/spells-phb.json', "r") as read_file:
         data = json.load(read_file)
     '''
@@ -123,78 +199,10 @@ def main():
     #spells-phb.json seems to contain xge spells?
     vprint("Converting...")
     for spell in data['spell']:#[40:42]:
-        name = spell['name']
-        vprint(name)
-        if contains_table(spell['entries']):
-            print("ERROR:", name, "; tables currently not supported")
-            continue
-
-        if contains_dict(spell['entries']):
-            text = itemize_dicts(spell['entries'])
-        elif contains_list(spell['entries']):
-            text = itemize_lists(spell['entries'])
-        else:
-            text = "\\\\\\phantom{-}\\\\".join(spell['entries'])
-        higher = "\\\\\\phantom{-}\\\\" + spell['entriesHigherLevel'][0]['entries'][0] if "entriesHigherLevel" in spell else ""
-        #higher = text[text.index("At Higher Levels:"):]
-        level = spell['level']
-        range = spell['range']['distance']['type']
-        if 'amount' in spell['range']['distance']:
-            range = str(spell['range']['distance']['amount']) + " " + range
-        range = range.capitalize()
-        components = ", ".join(list(zip(*list(spell['components'].items())))[0]).upper()
-        save = spell['savingThrow'] if 'savingThrow' in spell else "-"
-        if len(spell['duration']) > 1:
-            print(name, "has multiple durations")
-        time = str(spell['time'][0]['number']) + " " + spell['time'][0]['unit']
-        duration = spell['duration'][0]['type']
-        if 'amount' in spell['duration'][0]:
-            duration = str(spell['duration'][0]['amount']) + " " + duration
-        if 'concentration' in spell['duration'][0] and spell['duration'][0]['concentration']:
-            duration = "(C) " + duration
-        if type(save) == list:
-            save = ", ".join(save)
-        save = save.capitalize()
-        dice, damage = get_damage(spell, text)
-        area = find_area(text)
-
-        #higher = text[text.index("At Higher Levels:"):]
-        text = clean_text(text)
-        output = template
-        output = output.replace('<NAME>', name)    #this copies the template right?
-        output = output.replace('<LEVEL>', str(level))
-        output = output.replace('<RANGE>', range)
-        output = output.replace('<AREA>', area)
-        output = output.replace('<COMPONENTS>', components)
-        output = output.replace('<DURATION>', duration)
-        output = output.replace('<TIME>', time)
-        output = output.replace('<TEXT>', text)
-        output = output.replace('<HIGHER>', higher)
-
-        #clean up
-        delete = 0
-        if dice + " " + damage == "- -":
-            output = output.replace("\\textbf{Damage}", " ")
-            output = output.replace('<DAMAGE>', " ")
-            delete += 1
-            if save == "-":
-                output = output.replace("\\textbf{Saving Throw}", " ")
-                delete += 1
-        else:
-            output = output.replace('<DAMAGE>', dice + " " + damage)
-        output = output.replace('<SAVE>', save)
-        if area == "-":
-            #output = output.replace("\\textbf{Area}", " ")
-            delete += 1
-        #remove empty table rows:
-        if delete == 3:
-            begin = output.index("%d_begin")
-            end = output.index("%d_end")
-            output = output.replace(output[begin:(end+6)], "")
-
-        path = "output/" + name.replace(" ", "_").replace("/", "_").lower() + '.tex'
-        with open(path, "w") as file:
-            file.write(output)
+        try:
+            convert(spell, template)
+        except (LookupError, TypeError, UnicodeEncodeError) as e:
+            print("ERROR:", spell['name'], type(e))
 
 if __name__ == '__main__':
     main()
