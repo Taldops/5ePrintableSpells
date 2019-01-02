@@ -30,6 +30,34 @@ def get_damage(spell):
             damage = "(" + damage + ")"
     return dice, damage
 
+def find_area(text):
+    #cone:
+    if 'cone' in text:
+        area = re.findall('\d+-foot cone', text)
+        area = area.replace('-foot', 'ft')
+    #sphere:
+    elif 'sphere' in text:
+        area = re.findall('\d+-[a-z]+-radius sphere', text)
+        area = area.replace('-foot', 'ft')
+        area = area[:-7]
+    #cube:
+    elif 'cube' in text:
+        area = re.findall('\d+-[a-z]+-cube', text)
+        area = area.replace('-foot', 'ft')
+    #line:
+    elif 'long line' in text or 'wide line' in text:
+        area = re.findall('\d+-[a-z]+-wide, \d+-[a-z]+-long line', text)
+        area += re.findall('\d+-[a-z]+-long, \d+-[a-z]+-wide line', text)
+        dim = re.findall('\d+-[a-z]+', area)
+        area = re.findall('\d+' in dim[0])[0] + re.findall('[a-z]+' in dim[0])[0]
+        area += + " $\\times$ " + re.findall('\d+' in dim[1])[0] + re.findall('[a-z]+' in dim[1])[0]
+        area += " line"
+        area = area.replace('-foot', 'ft')
+        #5-foot-wide, 60-foot-long line
+    else:
+        area = "-"
+    return area
+
 def main():
     with open('template.tex', "r") as read_file:
         template = "".join(read_file.readlines())
@@ -40,23 +68,27 @@ def main():
     #spells-phb.json seems to contain xge spells?
     for spell in data['spell'][40:42]:
         text = "\\\\\phantom{-}\\\\".join(spell['entries'])
-        higher = "\\\\phantom{-}\\\\" + spell['entriesHigherLevel']['entries'][0] if "entriesHigherLevel" in spell else ""
+        higher = "\\\\phantom{-}\\\\" + spell['entriesHigherLevel'][0]['entries'][0] if "entriesHigherLevel" in spell else ""
         #higher = text[text.index("At Higher Levels:"):]
         name = spell['name']
         level = spell['level']
-        range = str(spell['range']['distance']['amount']) + " " + spell['range']['distance']['type']
+        range = spell['range']['distance']['type']
+        if 'amount' in spell['range']['distance']:
+            range = str(spell['range']['distance']['amount']) + " " + range
+        range = range.capitalize()
         components = ", ".join(list(zip(*list(spell['components'].items())))[0]).upper()
         save = spell['savingThrow'] if 'savingThrow' in spell else ""
         if len(spell['duration']) > 1:
             print(name, "has multiple durations")
         time = str(spell['time'][0]['number']) + " " + spell['time'][0]['unit']
         duration = str(spell['duration'][0]['duration']['amount']) + " " + spell['duration'][0]['duration']['type']
-        if spell['duration'][0]['concentration']:
+        if 'concentration' in spell['duration'][0] and spell['duration'][0]['concentration']:
             duration = "(C) " + duration
         if type(save) == list:
             save = ", ".join(save)
         save = save.capitalize()
         dice, damage = get_damage(spell)
+        area = find_area(text)
 
         #higher = text[text.index("At Higher Levels:"):]
         text = clean_text(text)
@@ -64,15 +96,20 @@ def main():
         output = output.replace('<NAME>', name)    #this copies the template right?
         output = output.replace('<LEVEL>', str(level))
         output = output.replace('<RANGE>', range)
+        output = output.replace('<AREA>', area)
         output = output.replace('<COMPONENTS>', components)
         output = output.replace('<DURATION>', duration)
         output = output.replace('<TIME>', time)
         output = output.replace('<SAVE>', save)
-        output = output.replace('<DAMAGE>', dice + " " + damage)
+        if dice + " " + damage == "- -":
+            output = output.replace("\\textbf{Damage}", " ")
+            output = output.replace('<DAMAGE>', " ")
+        else:
+            output = output.replace('<DAMAGE>', dice + " " + damage)
         output = output.replace('<TEXT>', text)
         output = output.replace('<HIGHER>', higher)
 
-        path = "output/" + name.replace(" ", "_").lower() + '.tex'
+        path = "output/" + name.replace(" ", "_").replace("/", "_").lower() + '.tex'
         with open(path, "w") as file:
             file.write(output)
 
