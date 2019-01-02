@@ -8,6 +8,8 @@ Replace newlinines with \\phantom\\?
 '''
 
 def main():
+    with open('template.tex', "r") as read_file:
+        template = "".join(read_file.readlines())
     with open('data/spells-scag.json', "r") as read_file:
         data = json.load(read_file)
     with open('data/spells-phb.json', "r") as read_file:
@@ -19,8 +21,18 @@ def main():
         #higher = text[text.index("At Higher Levels:"):]
         name = spell['name']
         level = spell['level']
-        save = spell['savingThrow'] if 'savingThrow' in spell else "-"
-        save[0] = save[0].capitalize()
+        range = str(spell['range']['distance']['amount']) + " " + spell['range']['distance']['type']
+        components = ", ".join(list(zip(*list(spell['components'].items())))[0]).upper()
+        save = spell['savingThrow'] if 'savingThrow' in spell else ""
+        if len(spell['duration']) > 1:
+            print(name, "has multiple durations")
+        time = str(spell['time'][0]['number']) + " " + spell['time'][0]['unit']
+        duration = str(spell['duration'][0]['duration']['amount']) + " " + spell['duration'][0]['duration']['type']
+        if spell['duration'][0]['concentration']:
+            duration = "(C) " + duration
+        if type(save) == list:
+            save = ", ".join(save)
+        save = save.capitalize()
         damage = spell['damageInflict'] if 'damageInflict' in spell else ["-"]
         dice = re.findall('\d+d\d+', text) + ["-"]
         #higher = text[text.index("At Higher Levels:"):]
@@ -28,7 +40,11 @@ def main():
         output = template
         output = output.replace('<NAME>', name)    #this copies the template right?
         output = output.replace('<LEVEL>', str(level))
-        output = output.replace('<SAVE>', save[0])
+        output = output.replace('<RANGE>', range)
+        output = output.replace('<COMPONENTS>', components)
+        output = output.replace('<DURATION>', duration)
+        output = output.replace('<TIME>', time)
+        output = output.replace('<SAVE>', save)
         output = output.replace('<DAMAGE>', dice[0] + " " + damage[0])
         output = output.replace('<TEXT>', text)
         output = output.replace('<HIGHER>', higher)
@@ -37,43 +53,5 @@ def main():
         with open(path, "w") as file:
             file.write(output)
 
-
-template = """\\begin{framed}
-
-\\begin{minipage}{0.5\\textwidth}
-    \huge
-    <NAME>
-\end{minipage}
-\\begin{minipage}{0.45\\textwidth}
-    \\flushright
-    Level <LEVEL>
-\end{minipage}\\\\
-\medskip
-\phantom{0}
-
-\\begin{tabularx}{1.0\\textwidth}{XXXXX}
-    \\textbf{Range} & \\textbf{Components} & \\textbf{Duration} & \\textbf{Time}\\\\
-    <RANGE> & <COMPONENTS> & <DURATION> & <TIME>\\\\
-    & & & \\\\
-    \\textbf{Area} & \\textbf{Saving Throw} & \\textbf{Damage} & \\\\
-    <AREA> & <SAVE> & <DAMAGE>
-\end{tabularx}\\\\
-\phantom{0}\\\\
-<TEXT>
-<HIGHER>
-\smallskip
-\end{framed}"""
-
 if __name__ == '__main__':
     main()
-
-
-'''
-\phantom{0}\\\\
-A bright streak flashes from your pointing finger to a point you choose within range and then blossoms with a low roar into an explosion of flame. Each creature in a 20-foot-radius sphere centered on that point must make a Dexterity saving throw. A target takes 8d6 fire damage on a failed save, or half as much damage on a successful one.\\
-\phantom{-}\\\\
-The fire spreads around corners. It ignites flammable objects in the area that aren't being worn or carried.\\
-\phantom{-}\\\\
-\textbf{At Higher Levels:}\\\\
-When you cast this spell using a spell slot of 4th level or higher, the damage increases by 1d6 for each slot level above 3rd.
-'''
