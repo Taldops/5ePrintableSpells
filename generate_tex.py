@@ -3,9 +3,11 @@ import re
 
 '''
 To do:
-upload to github (don't call it dnd, call it 5e something)
-Replace newlinines with \\phantom\\?
+Work on area
 '''
+
+vprint = print if "--debug" in sys.argv or "--verbose" in sys.argv else lambda *a, **k: None
+
 def clean_text(text):
     text = text.replace('@condition ', '')
     text = text.replace('@dice ', '')
@@ -66,9 +68,9 @@ def main():
     with open('data/spells-phb.json', "r") as read_file:
         data['spell'] += json.load(read_file)['spell']
     #spells-phb.json seems to contain xge spells?
-    for spell in data['spell'][40:42]:
-        text = "\\\\\phantom{-}\\\\".join(spell['entries'])
-        higher = "\\\\phantom{-}\\\\" + spell['entriesHigherLevel'][0]['entries'][0] if "entriesHigherLevel" in spell else ""
+    for spell in data['spell']:#[40:42]:
+        text = "\\\\\\phantom{-}\\\\".join(spell['entries'])
+        higher = "\\\\\\phantom{-}\\\\" + spell['entriesHigherLevel'][0]['entries'][0] if "entriesHigherLevel" in spell else ""
         #higher = text[text.index("At Higher Levels:"):]
         name = spell['name']
         level = spell['level']
@@ -77,7 +79,7 @@ def main():
             range = str(spell['range']['distance']['amount']) + " " + range
         range = range.capitalize()
         components = ", ".join(list(zip(*list(spell['components'].items())))[0]).upper()
-        save = spell['savingThrow'] if 'savingThrow' in spell else ""
+        save = spell['savingThrow'] if 'savingThrow' in spell else "-"
         if len(spell['duration']) > 1:
             print(name, "has multiple durations")
         time = str(spell['time'][0]['number']) + " " + spell['time'][0]['unit']
@@ -101,13 +103,31 @@ def main():
         output = output.replace('<DURATION>', duration)
         output = output.replace('<TIME>', time)
         output = output.replace('<SAVE>', save)
+        output = output.replace('<TEXT>', text)
+        output = output.replace('<HIGHER>', higher)
+
+        #clean up
+        delete = 0
         if dice + " " + damage == "- -":
             output = output.replace("\\textbf{Damage}", " ")
             output = output.replace('<DAMAGE>', " ")
+            delete += 1
         else:
             output = output.replace('<DAMAGE>', dice + " " + damage)
-        output = output.replace('<TEXT>', text)
-        output = output.replace('<HIGHER>', higher)
+        if save == "-":
+            output = output.replace("\\textbf{Saving Throw}", " ")
+            delete += 1
+        if area == "-":
+            #output = output.replace("\\textbf{Area}", " ")
+            delete += 1
+        #remove empty table rows:
+        if delete == 3:
+            begin = output.index("%d_begin")
+            end = output.index("%d_end")
+            output = output.replace(output[begin:(end+6)], "")
+
+        if name == 'Blink':
+            print(output)
 
         path = "output/" + name.replace(" ", "_").replace("/", "_").lower() + '.tex'
         with open(path, "w") as file:
