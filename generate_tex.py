@@ -6,6 +6,29 @@ To do:
 upload to github (don't call it dnd, call it 5e something)
 Replace newlinines with \\phantom\\?
 '''
+def clean_text(text):
+    text = text.replace('@condition ', '')
+    text = text.replace('@dice ', '')
+    return text
+
+def get_damage(spell):
+    text = "".join(spell['entries'])    #TODO this is done again to avoid extra parameters. Refactor this, so it is only done once!
+    damage = spell['damageInflict'] if 'damageInflict' in spell else ["-"]
+    dice = re.findall('\d+d\d+', text) + ["-"]
+    if len(dice) > 2:
+        dice = "Varies"
+    else:
+        dice = dice[0]
+    if len(damage) > 1:
+        if dice == "Varies":
+            damage = ""
+        else:
+            damage = "various"
+    else:
+        damage = damage[0]
+        if dice == "Varies":
+            damage = "(" + damage + ")"
+    return dice, damage
 
 def main():
     with open('template.tex', "r") as read_file:
@@ -33,10 +56,10 @@ def main():
         if type(save) == list:
             save = ", ".join(save)
         save = save.capitalize()
-        damage = spell['damageInflict'] if 'damageInflict' in spell else ["-"]
-        dice = re.findall('\d+d\d+', text) + ["-"]
-        #higher = text[text.index("At Higher Levels:"):]
+        dice, damage = get_damage(spell)
 
+        #higher = text[text.index("At Higher Levels:"):]
+        text = clean_text(text)
         output = template
         output = output.replace('<NAME>', name)    #this copies the template right?
         output = output.replace('<LEVEL>', str(level))
@@ -45,7 +68,7 @@ def main():
         output = output.replace('<DURATION>', duration)
         output = output.replace('<TIME>', time)
         output = output.replace('<SAVE>', save)
-        output = output.replace('<DAMAGE>', dice[0] + " " + damage[0])
+        output = output.replace('<DAMAGE>', dice + " " + damage)
         output = output.replace('<TEXT>', text)
         output = output.replace('<HIGHER>', higher)
 
