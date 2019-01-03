@@ -4,8 +4,9 @@ import sys
 
 '''
 To do:
-Work on area
-support tables in entries
+- Work on area
+- support tables in entries
+- colors and other fonts? Bold dice and other important info in the text?
 '''
 
 vprint = print if "--debug" in sys.argv or "--verbose" in sys.argv else lambda *a, **k: None
@@ -13,12 +14,13 @@ vprint = print if "--debug" in sys.argv or "--verbose" in sys.argv else lambda *
 def clean_text(text):
     text = text.replace('@condition ', '')
     text = text.replace('@dice ', '')
+    text = text.replace('@creature ', '')
     return text
 
 def get_damage(spell, text):
     damage = spell['damageInflict'] if 'damageInflict' in spell else ["-"]
     dice = re.findall('\d+d\d+', text) + ["-"]
-    if len(dice) > 2:
+    if len(set(dice)) > 2:
         dice = "Varies"
     else:
         dice = dice[0]
@@ -70,6 +72,8 @@ def itemize_dicts(entries):
         while current < len(entries) and type(entries[current]) == str:
             text += "\\\\\\phantom{-}\\\\" + entries[current]
             current += 1
+        if current >= len(entries):
+            break
         text += "\n\\begin{itemize}\n"
         while current < len(entries) and type(entries[current]) == dict:
             text += "\\item "
@@ -84,14 +88,19 @@ def itemize_lists(entries):
     text = entries[0]
     current = 1
     while current < len(entries):
+        first = True
         while current < len(entries) and type(entries[current]) == str:
-            text += "\\\\\\phantom{-}\\\\" + entries[current]
+            if first:
+                first = False
+            else:
+                text += "\n\\\\phantom{-}\\\\"
+            text += entries[current]
             current += 1
         while current < len(entries) and type(entries[current]) == dict and entries[current]['type'] == 'list':
             text += "\n\\begin{itemize}\n"
             for item in entries[current]['items']:
                 text += "\\item " + item + '\n'
-                text += "\\end{itemize}\n"
+            text += "\\end{itemize}\n"
             current += 1
     return text
 
@@ -124,7 +133,13 @@ def convert(spell, template):
     else:
         text = "\\\\\\phantom{-}\\\\".join(spell['entries'])
 
-    higher = "\\\\\\phantom{-}\\\\" + spell['entriesHigherLevel'][0]['entries'][0] if "entriesHigherLevel" in spell else ""
+    if "entriesHigherLevel" in spell:
+        higher = "\\\\\\phantom{-}\\\\" + "\n\\textbf{At Higher Levels: }" + spell['entriesHigherLevel'][0]['entries'][0]
+        scale = re.findall('\{@scaledice .*\}', higher)
+        if len(scale) > 0:
+            higher = re.sub('\{@scaledice .*\}', scale[0][-4:-1], higher)
+    else:
+        higher = ""
     level = spell['level']
     range = spell['range']['distance']['type']
     if 'amount' in spell['range']['distance']:
@@ -136,8 +151,11 @@ def convert(spell, template):
         print(name, "has multiple durations")
     time = str(spell['time'][0]['number']) + " " + spell['time'][0]['unit']
     duration = spell['duration'][0]['type']
-    if 'amount' in spell['duration'][0]:
-        duration = str(spell['duration'][0]['amount']) + " " + duration
+    if duration == 'timed':
+        duration = str(spell['duration'][0]['duration']['amount']) + " " + spell['duration'][0]['duration']['type']
+    duration = duration.replace('instant', 'instantaneous').capitalize()
+    #if 'amount' in spell['duration'][0]:
+        #duration = str(spell['duration'][0]['amount']) + " " + duration
     if 'concentration' in spell['duration'][0] and spell['duration'][0]['concentration']:
         duration = "(C) " + duration
     if type(save) == list:
@@ -150,6 +168,9 @@ def convert(spell, template):
     text = clean_text(text)
     output = template
     output = output.replace('<NAME>', name)    #this copies the template right?
+    if level == 0:
+        level = "Cantrip"
+        output = output.replace('\\flushright\n    Level ', "\\flushright\n    ")
     output = output.replace('<LEVEL>', str(level))
     output = output.replace('<RANGE>', range)
     output = output.replace('<AREA>', area)
@@ -166,6 +187,7 @@ def convert(spell, template):
         output = output.replace('<DAMAGE>', " ")
         delete += 1
         if save == "-":
+            save = ""
             output = output.replace("\\textbf{Saving Throw}", " ")
             delete += 1
     else:
@@ -192,10 +214,10 @@ def main():
 
     with open('data/spells-phb.json', "r") as read_file:
         data = json.load(read_file)
-    '''
     with open('data/spells-scag.json', "r") as read_file:
         data['spell'] += json.load(read_file)['spell']
-    '''
+    with open('data/spells-xge.json', "r") as read_file:
+        data['spell'] += json.load(read_file)['spell']
     #spells-phb.json seems to contain xge spells?
     vprint("Converting...")
     for spell in data['spell']:#[40:42]:
