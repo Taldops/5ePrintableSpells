@@ -40,13 +40,21 @@ def clean_text(text):
     text = text.replace('@dice ', '')
     return text
 
+def detect_healing(text):
+    text = text.lower()
+    return not "damage" in text and ("heal" in text or "regains hit points" in text)
+
 def get_damage(spell, text):
     damage = spell['damageInflict'] if 'damageInflict' in spell else ["-"]
-    dice = re.findall('\d+d\d+', text) + ["-"]
-    if len(set(dice)) > 2:
-        dice = "Varies"
-    else:
+    dice = re.findall('\{\d+d\d+.{0,10}\}', text)
+    if len(dice) == 0 or not ("damage" in text or detect_healing(text)):      #Not every dice roll means damage
+        dice = '-'
+    elif len(dice) == 1:
         dice = dice[0]
+    else:
+        dice = "Varies"
+    if " + your " in text and dice != '-':
+        dice += " + mod"
     if len(damage) > 1:
         if dice == "Varies":
             damage = ""
@@ -59,6 +67,7 @@ def get_damage(spell, text):
     return dice, damage
 
 def find_area(text):
+    center = re.findall('within [0-9]+ [a-z]* of you', text)
     #cone:
     if 'cone' in text:
         area = re.findall('\d+.foot.cone', text)[0]
@@ -86,8 +95,9 @@ def find_area(text):
         dim = re.findall('\d+.[a-z]+', area)
         area = dim[0] + " $\\times$ " + dim[1]
         area += " line"
-        #area = area.replace('.foot', 'ft')
-        #5-foot-wide, 60-foot-long line
+    # "within [distance] of you"
+    elif len(center) > 0:
+        area = center[0][7:-7] + ' radius'
     else:
         area = "-"
     if area == []:
@@ -177,7 +187,7 @@ def make_table(table):
 
 def convert(spell, template):
     name = spell['name']
-    #if name not in ['Animate Objects']: return
+    #if name not in ['Disintegrate']: return
     vprint(name)
     text = format_text(spell['entries'])
 
@@ -217,6 +227,7 @@ def convert(spell, template):
 
     #higher = text[text.index("At Higher Levels:"):]
     output = template
+
     output = output.replace('<NAME>', name)    #this copies the template right?
     if level == 0:
         level = "Cantrip"
@@ -231,6 +242,11 @@ def convert(spell, template):
     output = output.replace('<HIGHER>', higher)
 
     #clean up
+    if detect_healing(text):
+        output = output.replace('\\textbf{Damage}', '\\textbf{Healing}')
+    if dice != "-" and damage == "-":
+        damage = ''
+
     delete = 0
     if dice + " " + damage == "- -":
         output = output.replace("\\textbf{Damage}", " ")
