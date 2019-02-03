@@ -13,13 +13,24 @@ vprint = print if "--debug" in sys.argv or "--verbose" in sys.argv else lambda *
 
 def clean_text(text):
     text = text.replace('@condition ', '')
-    text = text.replace('@dice ', '')
-    text = text.replace('@creature ', '')
     text = text.replace('×', '$\\times$')
     text = text.replace('Ã', '$\\times$')   #Some weird encoding stuff where the x is actually this a
     text = text.replace('—', '')
     text = text.replace('\u22124', '-')
     text = text.replace('\u2212', '-')
+
+    text = re.sub('\{@creature.*phb\|', '{', text)
+    text = re.sub('\{@hit ', '{', text)
+    text = re.sub('\{@damage ', '{', text)
+    text = re.sub('\{@dice ', '{', text)
+    text = re.sub('\|[0-9]+', '', text)
+    filters = re.findall('\{@filter .*lower', text) #hopefully there is only 1 per paragraph
+    if len(filters) > 1:
+        text = re.sub('\{@filter .*\}', filters[0][9:], text)
+
+    text = text.replace('@creature ', '')
+
+    text = text.replace('@dice ', '')
     return text
 
 def get_damage(spell, text):
@@ -78,39 +89,44 @@ def find_area(text):
 
 def format_text(entries):
     text = entries[0]        #This assumes the first entry is always plain text
+    text = clean_text(text)
     current = 1
     while current < len(entries):
+        addition = ''
         if type(entries[current]) == str:     #Plain text
-            if type(entries[current]) == str:
-                text += '\\\\\n'
+            if type(entries[current-1]) == str:
+                addition += '\\\\\n'
+                addition += "\n\\smallskip\n"
             else:
-                text += "\n\\bigskip\n"
-            text += entries[current]
-            text = clean_text(text)
+                addition += "\n\\bigskip\n\\medskip\n"
+            addition += entries[current]
         elif type(entries[current]) == dict and entries[current]['type'] == 'entries':    #E
-            text += "\n\\bigskip\n"
-            text += "\n\\begin{itemize}\n"
+            addition += "\n\\bigskip\n"
+            addition += "\n\\begin{itemize}\n"
             while current < len(entries) and type(entries[current]) == dict and entries[current]['type'] == 'entries':
-                text += "\\item "
+                addition += "\\item "
                 if "name" in entries[current]:
-                    text += "\\textbf{" + entries[current]["name"] + ":} "
-                text += entries[current]['entries'][0] + "\n"
+                    addition += "\\textbf{" + entries[current]["name"] + ":} "
+                addition += entries[current]['entries'][0] + "\n"
                 current += 1
             current -= 1
-            text += "\\end{itemize}\n"
+            addition += "\\end{itemize}\n"
         elif type(entries[current]) == dict and entries[current]['type'] == 'list':
-            text += "\n\\bigskip\n"
-            text += "\n\\begin{itemize}\n"
+            addition += "\n\\bigskip\n"
+            addition += "\n\\begin{itemize}\n"
             for item in entries[current]['items']:
-                text += "\\item " + item + '\n'
-            text += "\\end{itemize}\n"
+                addition += "\\item " + item + '\n'
+            addition += "\\end{itemize}\n"
             current += 1
         elif entries[current]['type'] == 'table':
-            if type(entries[current]) == str:
-                text += '\\\\\n'
+            if type(entries[current-1]) == str:
+                addition += '\\\\\n'
+                addition += "\n\\medskip\n"
             else:
-                text += "\n\\bigskip\n"
-            text += make_table(entries[current])
+                addition += "\n\\bigskip\n"
+            addition += make_table(entries[current])
+        addition = clean_text(addition)
+        text += addition
         current += 1
     return text
 
@@ -127,11 +143,11 @@ def convert_cell(cell):
 
 def make_table(table):
     if 'caption' in table:
-        caption = "\\textbf{\\large " + table['caption'] + "}\\\\"
+        caption = "\\textbf{\\large " + table['caption'] + "}\\medskip\\\\"
     else:
         caption = ''
     begin_table = "\\begin{tabular}{l"
-    row1 = table['colLabels'][0]
+    row1 = '\\textbf{' + table['colLabels'][0] + '}'
     for label in table['colLabels'][1:]:
         begin_table += "|l"
         row1 += ' & \\textbf{' + label + '}'
@@ -154,7 +170,7 @@ def make_table(table):
 
 def convert(spell, template):
     name = spell['name']
-    #if name not in ['Sunbeam']: return
+    #if name not in ['Animate Objects']: return
     vprint(name)
     text = format_text(spell['entries'])
 
