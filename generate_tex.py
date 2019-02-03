@@ -18,6 +18,8 @@ def clean_text(text):
     text = text.replace('×', '$\\times$')
     text = text.replace('Ã', '$\\times$')   #Some weird encoding stuff where the x is actually this a
     text = text.replace('—', '')
+    text = text.replace('\u22124', '-')
+    text = text.replace('\u2212', '-')
     return text
 
 def get_damage(spell, text):
@@ -58,14 +60,20 @@ def find_area(text):
     elif 'long line' in text or 'wide line' in text:
         area = re.findall('\d+.[a-z]+.wide, \d+.[a-z]+.long line', text)
         area += re.findall('\d+.[a-z]+.long, \d+.[a-z]+.wide line', text)
-        dim = re.findall('\d+.[a.z]+', area)
-        area = re.findall('\d+' in dim[0])[0] + re.findall('[a-z]+' in dim[0])[0]
-        area += + " $\\times$ " + re.findall('\d+' in dim[1])[0] + re.findall('[a-z]+' in dim[1])[0]
+        if type(area) == list:
+            if len(area) == 1:
+                area = area[0]
+            else:
+                area = ", ".join(area)
+        dim = re.findall('\d+.[a-z]+', area)
+        area = dim[0] + " $\\times$ " + dim[1]
         area += " line"
-        area = area.replace('.foot', 'ft')
+        #area = area.replace('.foot', 'ft')
         #5-foot-wide, 60-foot-long line
     else:
         area = "-"
+    if area == []:
+        area = '-'
     return area
 
 def format_text(entries):
@@ -106,8 +114,22 @@ def format_text(entries):
         current += 1
     return text
 
+def convert_cell(cell):
+    if type(cell) == str:
+        return cell
+    elif type(cell) == dict:
+        if 'exact' in cell['roll']:
+            return str(cell['roll']['exact'])
+        else:
+            return str(cell['roll']['min']) + ' to ' + str(cell['roll']['max'])
+    else:
+        print("I am confused by this table.")
+
 def make_table(table):
-    caption = "\\textbf{\\large " + table['caption'] + "}\\\\"
+    if 'caption' in table:
+        caption = "\\textbf{\\large " + table['caption'] + "}\\\\"
+    else:
+        caption = ''
     begin_table = "\\begin{tabular}{l"
     row1 = table['colLabels'][0]
     for label in table['colLabels'][1:]:
@@ -117,12 +139,13 @@ def make_table(table):
     row1 += '\\\\'
     rows = []
     for r in table['rows']:
-        str = r[0]
+        text = convert_cell(r[0])
         for entry in r[1:]:
-            str += ' & ' + entry
-        str += '\\\\'
+            text += ' & ' + convert_cell(entry)
+        text += '\\\\'
         rows.append('\\hline')
-        rows.append(str)
+        rows.append(text)
+
     result = caption + '\n' + begin_table + '\n' +  row1 + '\n'
     for r in rows:
         result += r + '\n'
@@ -131,6 +154,7 @@ def make_table(table):
 
 def convert(spell, template):
     name = spell['name']
+    #if name not in ['Sunbeam']: return
     vprint(name)
     text = format_text(spell['entries'])
 
@@ -142,9 +166,12 @@ def convert(spell, template):
     else:
         higher = ""
     level = spell['level']
-    range = spell['range']['distance']['type']
-    if 'amount' in spell['range']['distance']:
-        range = str(spell['range']['distance']['amount']) + " " + range
+    if 'distance' in spell['range']:
+        range = spell['range']['distance']['type']
+        if 'amount' in spell['range']['distance']:
+            range = str(spell['range']['distance']['amount']) + " " + range
+    else:
+        range = spell['range']['type']
     range = range.capitalize()
     components = ", ".join(list(zip(*list(spell['components'].items())))[0]).upper()
     save = spell['savingThrow'] if 'savingThrow' in spell else "-"
