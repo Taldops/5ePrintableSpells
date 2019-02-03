@@ -2,6 +2,13 @@ import json
 import re
 import sys
 
+print_progress = False
+try:
+    from tqdm import tqdm
+    print_progress = True
+except ModuleNotFoundError:
+    pass
+
 '''
 To do:
 - Work on area
@@ -101,7 +108,7 @@ def format_text(entries):
                 addition += "\n\\bigskip\n\\medskip\n"
             addition += entries[current]
         elif type(entries[current]) == dict and entries[current]['type'] == 'entries':    #E
-            addition += "\n\\bigskip\n"
+            addition += "\n\\smallskip\n"
             addition += "\n\\begin{itemize}\n"
             while current < len(entries) and type(entries[current]) == dict and entries[current]['type'] == 'entries':
                 addition += "\\item "
@@ -112,7 +119,7 @@ def format_text(entries):
             current -= 1
             addition += "\\end{itemize}\n"
         elif type(entries[current]) == dict and entries[current]['type'] == 'list':
-            addition += "\n\\bigskip\n"
+            addition += "\n\\smallskip\n"
             addition += "\n\\begin{itemize}\n"
             for item in entries[current]['items']:
                 addition += "\\item " + item + '\n'
@@ -192,7 +199,7 @@ def convert(spell, template):
     components = ", ".join(list(zip(*list(spell['components'].items())))[0]).upper()
     save = spell['savingThrow'] if 'savingThrow' in spell else "-"
     if len(spell['duration']) > 1:
-        print(name, "has multiple durations")
+        vprint(name, "has multiple durations")
     time = str(spell['time'][0]['number']) + " " + spell['time'][0]['unit']
     duration = spell['duration'][0]['type']
     if duration == 'timed':
@@ -262,16 +269,20 @@ def main():
     with open('data/spells-xge.json', "r") as read_file:
         data['spell'] += json.load(read_file)['spell']
     #spells-phb.json seems to contain xge spells?
-    vprint("Converting...")
+    print("Converting...")
     if '--debug' in sys.argv:
         for spell in data['spell']:
             convert(spell, template)
     else:
-        for spell in data['spell']:#[40:42]:
+        if print_progress:
+            iterator = tqdm(data['spell'])
+        else:
+            iterator = data['spell']
+        for spell in iterator:#[40:42]:
             try:
                 convert(spell, template)
             except (LookupError, TypeError, UnicodeEncodeError) as e:
                 print("ERROR:", spell['name'], type(e))
-
+    print("Done!")
 if __name__ == '__main__':
     main()
