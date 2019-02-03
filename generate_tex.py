@@ -15,6 +15,9 @@ def clean_text(text):
     text = text.replace('@condition ', '')
     text = text.replace('@dice ', '')
     text = text.replace('@creature ', '')
+    text = text.replace('×', '$\\times$')
+    text = text.replace('Ã', '$\\times$')   #Some weird encoding stuff where the x is actually this a
+    text = text.replace('—', '')
     return text
 
 def get_damage(spell, text):
@@ -65,73 +68,71 @@ def find_area(text):
         area = "-"
     return area
 
-def itemize_dicts(entries):
-    text = entries[0]
+def format_text(entries):
+    text = entries[0]        #This assumes the first entry is always plain text
     current = 1
     while current < len(entries):
-        while current < len(entries) and type(entries[current]) == str:
-            text += "\\\\\\phantom{-}\\\\" + entries[current]
-            current += 1
-        if current >= len(entries):
-            break
-        text += "\n\\begin{itemize}\n"
-        while current < len(entries) and type(entries[current]) == dict:
-            text += "\\item "
-            if "name" in entries[current]:
-                text += "\\textbf{" + entries[current]["name"] + ":} "
-            text += entries[current]['entries'][0] + "\n"
-            current += 1
-        text += "\\end{itemize}\n"
-    return text
-
-def itemize_lists(entries):
-    text = entries[0]
-    current = 1
-    while current < len(entries):
-        first = True
-        while current < len(entries) and type(entries[current]) == str:
-            if first:
-                first = False
+        if type(entries[current]) == str:     #Plain text
+            if type(entries[current]) == str:
+                text += '\\\\\n'
             else:
-                text += "\n\\\\phantom{-}\\\\"
+                text += "\n\\bigskip\n"
             text += entries[current]
-            current += 1
-        while current < len(entries) and type(entries[current]) == dict and entries[current]['type'] == 'list':
+            text = clean_text(text)
+        elif type(entries[current]) == dict and entries[current]['type'] == 'entries':    #E
+            text += "\n\\bigskip\n"
+            text += "\n\\begin{itemize}\n"
+            while current < len(entries) and type(entries[current]) == dict and entries[current]['type'] == 'entries':
+                text += "\\item "
+                if "name" in entries[current]:
+                    text += "\\textbf{" + entries[current]["name"] + ":} "
+                text += entries[current]['entries'][0] + "\n"
+                current += 1
+            current -= 1
+            text += "\\end{itemize}\n"
+        elif type(entries[current]) == dict and entries[current]['type'] == 'list':
+            text += "\n\\bigskip\n"
             text += "\n\\begin{itemize}\n"
             for item in entries[current]['items']:
                 text += "\\item " + item + '\n'
             text += "\\end{itemize}\n"
             current += 1
+        elif entries[current]['type'] == 'table':
+            if type(entries[current]) == str:
+                text += '\\\\\n'
+            else:
+                text += "\n\\bigskip\n"
+            text += make_table(entries[current])
+        current += 1
     return text
 
-def contains_table(entries):
-    for e in entries:
-        if type(e) == dict and 'type' in e and e['type'] == 'table':
-            return True
-
-def contains_list(entries):
-    for e in entries:
-        if type(e) == dict and 'type' in e and e['type'] == 'list':
-            return True
-
-def contains_dict(entries):
-    for e in entries:
-        if type(e) == dict and 'type' in e and e['type'] == 'entries':
-            return True
+def make_table(table):
+    caption = "\\textbf{\\large " + table['caption'] + "}\\\\"
+    begin_table = "\\begin{tabular}{l"
+    row1 = table['colLabels'][0]
+    for label in table['colLabels'][1:]:
+        begin_table += "|l"
+        row1 += ' & \\textbf{' + label + '}'
+    begin_table += '}'
+    row1 += '\\\\'
+    rows = []
+    for r in table['rows']:
+        str = r[0]
+        for entry in r[1:]:
+            str += ' & ' + entry
+        str += '\\\\'
+        rows.append('\\hline')
+        rows.append(str)
+    result = caption + '\n' + begin_table + '\n' +  row1 + '\n'
+    for r in rows:
+        result += r + '\n'
+    result += '\\end{tabular}\n'
+    return result
 
 def convert(spell, template):
     name = spell['name']
     vprint(name)
-    if contains_table(spell['entries']):
-        print("ERROR:", name, "; tables currently not supported")
-        return
-
-    if contains_dict(spell['entries']):
-        text = itemize_dicts(spell['entries'])
-    elif contains_list(spell['entries']):
-        text = itemize_lists(spell['entries'])
-    else:
-        text = "\\\\\\phantom{-}\\\\".join(spell['entries'])
+    text = format_text(spell['entries'])
 
     if "entriesHigherLevel" in spell:
         higher = "\\\\\\phantom{-}\\\\" + "\n\\textbf{At Higher Levels: }" + spell['entriesHigherLevel'][0]['entries'][0]
@@ -165,7 +166,6 @@ def convert(spell, template):
     area = find_area(text)
 
     #higher = text[text.index("At Higher Levels:"):]
-    text = clean_text(text)
     output = template
     output = output.replace('<NAME>', name)    #this copies the template right?
     if level == 0:
@@ -220,11 +220,15 @@ def main():
         data['spell'] += json.load(read_file)['spell']
     #spells-phb.json seems to contain xge spells?
     vprint("Converting...")
-    for spell in data['spell']:#[40:42]:
-        try:
+    if '--debug' in sys.argv:
+        for spell in data['spell']:
             convert(spell, template)
-        except (LookupError, TypeError, UnicodeEncodeError) as e:
-            print("ERROR:", spell['name'], type(e))
+    else:
+        for spell in data['spell']:#[40:42]:
+            try:
+                convert(spell, template)
+            except (LookupError, TypeError, UnicodeEncodeError) as e:
+                print("ERROR:", spell['name'], type(e))
 
 if __name__ == '__main__':
     main()
