@@ -12,7 +12,11 @@ except ModuleNotFoundError:
 '''
 To do:
 - Colors and other fonts? Bold dice and other important info in the text?
-- Prettier tables?
+- Prettier tables (look at "Control Weather")
+- Better damage display for scaling cantrips
+
+- Use either single quotes or double quotes consistently for Christ's sake!
+- Better documentation
 '''
 
 vprint = print if "--debug" in sys.argv or "--verbose" in sys.argv else lambda *a, **k: None
@@ -210,7 +214,10 @@ def convert(spell, template):
     save = spell['savingThrow'] if 'savingThrow' in spell else "-"
     if len(spell['duration']) > 1:
         vprint(name, "has multiple durations")
-    time = str(spell['time'][0]['number']) + " " + spell['time'][0]['unit']
+    time = str(spell['time'][0]['number'])
+    time_unit = spell['time'][0]['unit']
+    if time_unit == 'bonus': time_unit += " action"     #Bonus action is just called "bonus in the data"
+    time += ' ' + time_unit
     duration = spell['duration'][0]['type']
     if duration == 'timed':
         duration = str(spell['duration'][0]['duration']['amount']) + " " + spell['duration'][0]['duration']['type']
