@@ -11,9 +11,8 @@ except ModuleNotFoundError:
 
 '''
 To do:
-- Work on area
-- support tables in entries
-- colors and other fonts? Bold dice and other important info in the text?
+- Colors and other fonts? Bold dice and other important info in the text?
+- Prettier tables?
 '''
 
 vprint = print if "--debug" in sys.argv or "--verbose" in sys.argv else lambda *a, **k: None
@@ -185,9 +184,10 @@ def make_table(table):
     result += '\\end{tabular}\n'
     return result
 
+# =========================================================================================================================
+
 def convert(spell, template):
     name = spell['name']
-    #if name not in ['Disintegrate']: return
     vprint(name)
     text = format_text(spell['entries'])
 
@@ -272,33 +272,34 @@ def convert(spell, template):
     with open(path, "w") as file:
         file.write(output)
 
-
 def main():
     vprint("Loading data...")
     with open('template.tex', "r") as read_file:
         template = "".join(read_file.readlines())
-
     with open('data/spells-phb.json', "r") as read_file:
         data = json.load(read_file)
     with open('data/spells-scag.json', "r") as read_file:
         data['spell'] += json.load(read_file)['spell']
     with open('data/spells-xge.json', "r") as read_file:
         data['spell'] += json.load(read_file)['spell']
-    #spells-phb.json seems to contain xge spells?
+
     print("Converting...")
     if '--debug' in sys.argv:
         for spell in data['spell']:
+            #if spell['name'] not in ['Disintegrate']: continue
             convert(spell, template)
     else:
         if print_progress:
             iterator = tqdm(data['spell'])
         else:
             iterator = data['spell']
-        for spell in iterator:#[40:42]:
-            try:
+        for spell in iterator:
+            try:        # Using try/escept so that at least all spells that don't throw an error get converted
                 convert(spell, template)
             except (LookupError, TypeError, UnicodeEncodeError) as e:
                 print("ERROR:", spell['name'], type(e))
     print("Done!")
+
+
 if __name__ == '__main__':
     main()
