@@ -11,6 +11,7 @@ This is a work in progress. Some spells will probably have mistakes and formatti
 5. Some spells might contain errors. You will have to fix them manually in the corresponding *.tex* file or write a fix into the script itself and submit a pull request.
 
 ## To do
+ - Display material components with a cost
  - Better damage display for scaling cantrips
  - Prettier tables
  - Use colors to highlight important aspects
